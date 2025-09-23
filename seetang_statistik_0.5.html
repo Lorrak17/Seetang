@@ -33,16 +33,16 @@ button{cursor:pointer}
     <p style="margin:0 0 8px 0; font-size:13px; color:#333">Was du hier machen kannst:</p>
     <ul style="margin:0 0 8px 18px; padding:0 0 0 0; font-size:13px; color:#333">
       <li>Links: Rohtext einfügen (Original-Ausgabe des Spiels).</li>
-      <li>Rechts: Falls du Altdaten hast, hier im Format <code>1. Name | Abgegeben: 12345</code> einfügen — der Wert wird als "Vorheriger Monat" übernommen.</li>
+      <li>Rechts: Falls du Altdaten von Discord Exporten hast, hier im Format <code>1. Name | Abgegeben: 12345</code> einfügen — der Wert wird als "Vorheriger Öffnung" übernommen.</li>
       <li>Klicke auf <b>Einträge hinzufügen</b>, um die Tabelle zu füllen.</li>
-      <li>In der Tabelle kannst du "Vorheriger Monat" und "Ausgegeben" direkt editieren.</li>
+      <li>In der Tabelle kannst du "Vorherige Öffnung" und "Ausgegeben" direkt editieren.</li>
     </ul>
     <p style="margin:8px 0 0 0; font-size:12px; color:#666">Tipp: Beim Klick auf eine Zelle wird der gesamte Wert markiert. Ein zweiter Klick erlaubt das Setzen des Cursors.</p>
   </div>
 
   <div style="flex:1; display:flex; flex-direction:column;">
-    <label style="font-weight:bold;margin-bottom:5px">Vorheriger Monat Import</label>
-    <textarea id="prevMonthInput" rows="8" placeholder="Vorheriger Monat Import (z.B. Zeilen mit | Abgegeben: 12345)" style="flex:1;min-height:140px"></textarea>
+    <label style="font-weight:bold;margin-bottom:5px">Vorherige Runde Import</label>
+    <textarea id="prevMonthInput" rows="8" placeholder="Vorherige Runde Import (z.B. Zeilen mit | Abgegeben: 12345)" style="flex:1;min-height:140px"></textarea>
   </div>
 </div>
 
@@ -61,9 +61,9 @@ button{cursor:pointer}
 <thead>
 <tr>
   <th>Platz</th><th>Spieler</th><th>Abgegeben</th>
-  <th>Vorheriger Monat</th><th>Ausgegeben</th>
-  <th>Haben</th><th>Dieser Monat gesammelt</th>
-  <th>% des Monats</th><th>Zu zahlen</th>
+  <th>Vorherige Öffnung</th><th>Ausgegeben</th>
+  <th>Haben</th><th>Diese Öffnung gesammelt</th>
+  <th>% der Öffnung</th><th>Zu zahlen</th>
 </tr>
 </thead>
 <tbody id="entryTable"></tbody>
@@ -71,8 +71,8 @@ button{cursor:pointer}
 
 <div class="stats">
   <p><b>Gesamter Seetang:</b> <span id="total">0</span></p>
-  <p><b>Seetang gesamt letzter Monat:</b> <span id="round">0</span></p>
-  <p><b>Gesamt diesen Monat gesammelt:</b> <span id="monthCollected">0</span></p>
+  <p><b>Seetang gesamt letzte Öffnung:</b> <span id="round">0</span></p>
+  <p><b>Gesamt diese Öffnung gesammelt:</b> <span id="monthCollected">0</span></p>
   <p><b>Pappgas gedroppt:</b> <span id="pappgasSum">0</span></p>
   <p><b>Klebeöl gedroppt:</b> <span id="klebeoelSum">0</span></p>
   <p><b>Preis pro Tang:</b> <span id="price">0</span></p>
