@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Seetang Statistik</title>
+<style>
+body{font-family:Arial;margin:20px;background:#f4f4f9}
+textarea,input,button{padding:8px;margin:5px 0}
+table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #ccc;padding:6px;text-align:left}
+th{background:#ddd}
+td[contenteditable]{background:#fffacd;direction:ltr}
+.stats,.gold,.export,.save-load{margin-top:20px;padding:10px;border-radius:5px}
+.gold{display:flex;gap:20px;align-items:center}
+.gold label{min-width:140px}
+.gold input{width:120px;background:#fffacd}
+#endkosten{background:#fff !important}
+.export textarea{width:100%;height:120px;background:#eef;white-space:pre-wrap}
+button{cursor:pointer}
+</style>
+</head>
+<body>
+<h1>Seetang Statistik</h1>
+
+<div style="display:flex; gap:10px; align-items:stretch;">
+  <div style="flex:1; display:flex; flex-direction:column;">
+    <label style="font-weight:bold;margin-bottom:5px">Rohtext</label>
+    <textarea id="entryInput" rows="8" placeholder="Rohtext hier einfügen (z.B. mehrere Zeilen mit Platzierung und Namen)" style="flex:1;min-height:140px"></textarea>
+  </div>
+
+  <div style="flex:0 0 360px; padding:12px; background:#ffffff; border:1px solid #e0e0e6; border-radius:8px;">
+    <h3 style="margin:0 0 8px 0">Kurzinfo / Anleitung</h3>
+    <ul style="margin:0 0 8px 18px; font-size:13px; color:#333">
+      <li>Links: Rohtext einfügen (Original-Ausgabe des Spiels).</li>
+      <li>Rechts: Falls du Altdaten von Discord Exporten hast, hier im Format <code>1. Name | Abgegeben: 12345</code> einfügen — der Wert wird als "Vorherige Öffnung" übernommen.</li>
+      <li>Klicke auf <b>Einträge hinzufügen</b>, um die Tabelle zu füllen.</li>
+      <li>In der Tabelle kannst du "Vorherige Öffnung" und "Ausgegeben" direkt editieren.</li>
+    </ul>
+  </div>
+
+  <div style="flex:1; display:flex; flex-direction:column;">
+    <label style="font-weight:bold;margin-bottom:5px">Vorherige Runde Import</label>
+    <textarea id="prevMonthInput" rows="8" placeholder="Vorherige Runde Import (z.B. Zeilen mit | Abgegeben: 12345)" style="flex:1;min-height:140px"></textarea>
+  </div>
+</div>
+
+<button id="addBtn">Einträge hinzufügen</button>
+<button id="resetBtn" style="background:#fca5a5">Reset</button>
+
+<div class="gold">
+  <label>Eröffnungskosten:</label><input id="eroeffnung" type="number" value="0">
+  <label>Ertrag aus Verkäufen:</label><input id="ertrag" type="number" value="0">
+  <label>Endkosten:</label><input id="endkosten" type="number" value="0" readonly>
+  <label>Pappgas gedroppt:</label><input id="pappgas" type="number" value="0">
+  <label>Klebeöl gedroppt:</label><input id="klebeoel" type="number" value="0">
+</div>
+
+<table>
+<thead>
+<tr>
+  <th>Platz</th><th>Spieler</th><th>Abgegeben</th>
+  <th>Vorherige Öffnung</th><th>Ausgegeben</th>
+  <th>Haben</th><th>Diese Öffnung gesammelt</th>
+  <th>% der Öffnung</th><th>Zu zahlen</th>
+</tr>
+</thead>
+<tbody id="entryTable"></tbody>
+</table>
+
+<div class="stats">
+  <p><b>Gesamter Seetang:</b> <span id="total">0</span></p>
+  <p><b>Seetang gesamt letzte Öffnung:</b> <span id="round">0</span></p>
+  <p><b>Gesamt diese Öffnung gesammelt:</b> <span id="monthCollected">0</span></p>
+  <p><b>Pappgas gedroppt:</b> <span id="pappgasSum">0</span></p>
+  <p><b>Klebeöl gedroppt:</b> <span id="klebeoelSum">0</span></p>
+  <p><b>Preis pro Tang:</b> <span id="price">0</span></p>
+</div>
+
+<div class="export">
+  <h3>Export für Discord</h3>
+  <textarea id="exportBox" readonly></textarea>
+</div>
+
+<!-- 🔹 Neuer Bereich zum Speichern und Laden -->
+<div class="save-load">
+  <h3>Statistik sichern</h3>
+  <input type="text" id="rundeName" placeholder="z. B. Runde 18-28.09">
+  <button onclick="saveAsFile()">Speichern</button>
+
+  <h3>Vorherige Statistik auslesen</h3>
+  <input type="file" id="fileLoader" accept=".json" onchange="loadFromFile(event)">
+</div>
+
+<script>
+let entries = [];
+const $ = id => document.getElementById(id);
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  load(); render(); bindGold();
+  $('addBtn').addEventListener('click', add);
+  $('resetBtn').addEventListener('click', reset);
+});
+
+function bindGold(){
+  ['eroeffnung','ertrag','pappgas','klebeoel'].forEach(id=>{
+    const el = $(id); if(!el) return; el.addEventListener('input', ()=>{
+      const e = parseFloat($('eroeffnung').value||0);
+      const r = parseFloat($('ertrag').value||0);
+      $('endkosten').value = (e - r).toString();
+      updateTotalsAndPrices();
+      updateAllRowDisplays();
+    });
+  });
+}
+
+function parseRaw(raw){
+  const lines = raw.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const out = [];
+  for(let i=0;i<lines.length;i+=2){
+    const p = /^(\d+)\./.exec(lines[i]);
+    const n = lines[i].replace(/^\d+\./,'').trim();
+    const num = lines[i+1]?.match(/([0-9\.,]+)/);
+    if(p && num){
+      const v = parseFloat(num[1].replace(/\./g,'').replace(',','.'))||0;
+      out.push({platz:+p[1], name:n, value:v, prev:0, spent:0});
+    }
+  }
+  return out;
+}
+
+function add(){
+  entries = entries.concat(parseRaw($('entryInput').value));
+  importPrevMonth($('prevMonthInput').value);
+  $('entryInput').value = '';
+  $('prevMonthInput').value = '';
+  save(); render();
+}
+
+function importPrevMonth(raw){
+  const lines = raw.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  lines.forEach(line=>{
+    const match = line.match(/^(\d+)\.\s*(.*?)\s*\| Abgegeben:\s*([0-9,\.]+)/);
+    if(match){
+      const name = match[2].trim();
+      const value = parseInt(match[3].replace(/\D/g,''))||0;
+      const entry = entries.find(e=>e.name===name);
+      if(entry) entry.prev = value;
+    }
+  });
+}
+
+function reset(){
+  if(!confirm('Alles löschen?')) return;
+  entries = [];
+  localStorage.removeItem('entries');
+  ['eroeffnung','ertrag','pappgas','klebeoel','endkosten'].forEach(id=>{ const el=$(id); if(el) el.value = 0; });
+  render();
+}
+
+function save(){ localStorage.setItem('entries', JSON.stringify(entries)); }
+function load(){ entries = JSON.parse(localStorage.getItem('entries')||'[]'); }
+
+function upd(el,i,key){
+  const text = el.innerText || '';
+  const num = parseInt(text.replace(/\D/g,'')) || 0;
+  entries[i][key] = num;
+  save();
+  updateTotalsAndPrices();
+}
+
+function updateTotalsAndPrices(){
+  const total = entries.reduce((s,e)=>s+ (e.value||0),0);
+  const prev = entries.reduce((s,e)=>s+ (e.prev||0),0);
+  const month = entries.reduce((s,e)=>s+ ((e.value||0)-(e.prev||0)),0);
+  $('total').textContent = total.toLocaleString('de-DE');
+  $('round').textContent = prev.toLocaleString('de-DE');
+  $('monthCollected').textContent = month.toLocaleString('de-DE');
+  const pappgas = parseInt($('pappgas').value)||0;
+  const klebeoel = parseInt($('klebeoel').value)||0;
+  $('pappgasSum').textContent = pappgas;
+  $('klebeoelSum').textContent = klebeoel;
+  const end = parseFloat($('endkosten').value)||0;
+  const price = month? (end/month) : 0;
+  $('price').textContent = price.toFixed(2);
+  updateExport(month, price, pappgas, klebeoel);
+}
+
+function render(){
+  const tb = $('entryTable'); tb.innerHTML = '';
+  const end = parseFloat($('endkosten').value)||0;
+  const month = entries.reduce((s,e)=>s+(e.value-e.prev),0);
+  const price = month ? (end/month) : 0;
+
+  entries.forEach((e,i)=>{
+    const bal = (e.value||0) - (e.spent||0);
+    const mcol = (e.value||0) - (e.prev||0);
+    const perc = month ? (mcol/month*100).toFixed(2)+'%' : '0%';
+    const toPay = (mcol*price).toFixed(2);
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${e.platz}</td>
+      <td>${e.name}</td>
+      <td>${(e.value||0).toLocaleString('de-DE')}</td>
+      <td contenteditable oninput="upd(this,${i},'prev')">${e.prev||''}</td>
+      <td contenteditable oninput="upd(this,${i},'spent')">${e.spent||''}</td>
+      <td>${bal.toLocaleString('de-DE')}</td>
+      <td>${mcol.toLocaleString('de-DE')}</td>
+      <td>${perc}</td>
+      <td>${toPay}</td>`;
+    tb.appendChild(row);
+  });
+
+  updateTotalsAndPrices();
+}
+
+function updateExport(month,price,pappgas,klebeoel){
+  const lines = [
+    `Gesamter Seetang: ${$('total').textContent}`,
+    `Seetang gesamt letzter Monat: ${$('round').textContent}`,
+    `Gesamt diesen Monat gesammelt: ${$('monthCollected').textContent}`,
+    `Pappgas gedroppt: ${pappgas}`,
+    `Klebeöl gedroppt: ${klebeoel}`,
+    `Preis pro Tang: ${price.toFixed(2)}`,'','Spieler Statistik:'
+  ];
+  entries.forEach(e=>{
+    const mcol = e.value - e.prev;
+    const monthTotal = entries.reduce((s,ee)=>s+(ee.value-ee.prev),0);
+    const perc = monthTotal ? (mcol/monthTotal*100).toFixed(2)+'%' : '0%';
+    const toPay = (mcol*price).toFixed(2);
+    lines.push(`${e.platz}. ${e.name} | Abgegeben: ${e.value} | Vormonat: ${e.prev} | Ausgegeben: ${e.spent} | Haben: ${e.value-e.spent} | Gesammelt: ${mcol} | Anteil: ${perc} | Zu zahlen: ${toPay}`);
+  });
+  $('exportBox').value = lines.join('\n');
+}
+
+// 🔹 NEU: Export als Datei
+function saveAsFile(){
+  const name = $('rundeName').value.trim() || "runde";
+  const data = {
+    timestamp: new Date().toISOString(),
+    name: name,
+    entries: entries,
+    totals: {
+      eroeffnung: $('eroeffnung').value,
+      ertrag: $('ertrag').value,
+      endkosten: $('endkosten').value,
+      pappgas: $('pappgas').value,
+      klebeoel: $('klebeoel').value,
+      export: $('exportBox').value
+    }
+  };
+
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name.replace(/\s+/g,'_')+".json";
+  a.click();
+}
+
+// 🔹 NEU: Import aus Datei
+function loadFromFile(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    try{
+      const data = JSON.parse(evt.target.result);
+      entries = data.entries || [];
+      $('eroeffnung').value = data.totals.eroeffnung || 0;
+      $('ertrag').value = data.totals.ertrag || 0;
+      $('endkosten').value = data.totals.endkosten || 0;
+      $('pappgas').value = data.totals.pappgas || 0;
+      $('klebeoel').value = data.totals.klebeoel || 0;
+      $('exportBox').value = data.totals.export || "";
+      render();
+    }catch(err){
+      alert("Fehler beim Laden der Datei!");
+    }
+  };
+  reader.readAsText(file);
+}
+</script>
+</body>
+</html>
